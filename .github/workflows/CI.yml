@@ -18,7 +18,7 @@ jobs:
       matrix:
         include:
           - build_variant: "mt7621"
-            targets: "RE-SP-01B"
+            targets: "JDCLOUD-RE-SP-01B"
     steps:
       - uses: actions/checkout@master
       - name: Prepare environment
