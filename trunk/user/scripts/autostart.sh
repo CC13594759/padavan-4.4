@@ -2,7 +2,6 @@
 #nvram set ntp_ready=0
 
 mkdir -p /tmp/dnsmasq.dom
-logger -t "为防止dnsmasq启动失败，创建/tmp/dnsmasq.dom/"
 
 smartdns_conf="/etc/storage/smartdns_custom.conf"
 dnsmasq_Conf="/etc/storage/dnsmasq/dnsmasq.conf"
@@ -22,7 +21,6 @@ logger -t "自动启动" "正在启动SmartDNS"
 fi
 
 
-logger -t "自动启动" "正在检查路由是否已连接互联网！"
 count=0
 while :
 do
@@ -67,7 +65,6 @@ logger -t "自动启动" "正在启动adguardhome"
 fi
 
 if [ $(nvram get zerotier_enable) = 1 ] ; then
-logger -t "自动启动" "正在启动zerotier"
 /usr/bin/zerotier.sh start
 fi
 
@@ -87,7 +84,6 @@ logger -t "自动启动" "正在启动wireguard"
 fi
 
 if [ $(nvram get sqm_enable) = 1 ] ; then
-sleep 30
 logger -t "自动启动" "正在启动SQM QOS"
 /usr/lib/sqm/run.sh
 fi
