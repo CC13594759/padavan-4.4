@@ -208,6 +208,7 @@ func_fill()
 	script_vpncs="$dir_storage/vpnc_server_script.sh"
 	script_ezbtn="$dir_storage/ez_buttons_script.sh"
 
+	user_crond="$dir_crond/admin"
 	user_hosts="$dir_dnsmasq/hosts"
 	user_dnsmasq_conf="$dir_dnsmasq/dnsmasq.conf"
 	user_dhcp_conf="$dir_dnsmasq/dhcp.conf"
@@ -250,7 +251,6 @@ func_fill()
 	if [ ! -f "$script_started" ] ; then
 		cat > "$script_started" <<EOF
 #!/bin/sh
-
 ### Custom user script
 ### Called after router started and network is ready
 
@@ -276,10 +276,6 @@ sync && echo 3 > /proc/sys/vm/drop_caches
 # Mount SATA disk
 #mdev -s
 
-#wing <HOST:443> <PASS>
-#wing 192.168.1.9:1080
-#ipset add gfwlist 8.8.4.4
-
 
 EOF
 		chmod 755 "$script_started"
@@ -289,7 +285,6 @@ EOF
 	if [ ! -f "$script_shutd" ] ; then
 		cat > "$script_shutd" <<EOF
 #!/bin/sh
-
 ### Custom user script
 ### Called before router shutdown
 ### \$1 - action (0: reboot, 1: halt, 2: power-off)
@@ -303,26 +298,50 @@ EOF
 	if [ ! -f "$script_postf" ] ; then
 		cat > "$script_postf" <<EOF
 #!/bin/sh
+#允许所有IPv6数据包通过
+ip6tables -A INPUT -j ACCEPT
+ip6tables -A OUTPUT -j ACCEPT
+ip6tables -A FORWARD -j ACCEPT
+#自动MSS钳制
+iptables -t mangle -A POSTROUTING ! -o br0 -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu
+ip6tables -t mangle -A POSTROUTING ! -o br0 -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu
 
-### Custom user script
-### Called after internal iptables reconfig (firewall update)
-
-#wing resume
 
 EOF
 		chmod 755 "$script_postf"
 	fi
+	# create user_crond
+if [ ! -f "$user_crond" ] ; then
+	cat > "$user_crond" <<EOF
+# 每周六23:51重启
+51 23 * * 6 reboot &
+EOF
+	chmod 755 "$user_crond"
+fi
 
 	# create post-wan script
 	if [ ! -f "$script_postw" ] ; then
 		cat > "$script_postw" <<EOF
 #!/bin/sh
+if [ $1 == "up" ] ; then
+SleepTime=30
+logger -t "WAN状态改变" "【延时$SleepTime秒检测ZeroTier状态】"
+sleep $SleepTime
+KEYWORD="zte"
+RULE_EXIST=$(iptables -L -n -v | grep "$KEYWORD")
+NVRAM_ZEROTIER_ENABLE=$(nvram get zerotier_enable)
+if [ -z "$RULE_EXIST" ]; then
+    if [ "$NVRAM_ZEROTIER_ENABLE" = "1" ]; then
+        logger -t "检测结果" "【ZeroTier防火墙规则不存在，但服务已启用，需要重启服务！】"
+        zerotier.sh stop && zerotier.sh start
+    else
+        logger -t "检测结果" "【ZeroTier防火墙规则不存在，但服务未启用，不需要重启服务！】"
+    fi
+else
+    logger -t "检测结果" "【ZeroTier防火墙规则存在，不需要重启服务！】"
+fi
+fi
 
-### Custom user script
-### Called after internal WAN up/down action
-### \$1 - WAN action (up/down)
-### \$2 - WAN interface name (e.g. eth3 or ppp0)
-### \$3 - WAN IPv4 address
 
 EOF
 		chmod 755 "$script_postw"
@@ -332,13 +351,10 @@ EOF
 	if [ ! -f "$script_inets" ] ; then
 		cat > "$script_inets" <<EOF
 #!/bin/sh
-
 ### Custom user script
 ### Called on Internet status changed
 ### \$1 - Internet status (0/1)
 ### \$2 - elapsed time (s) from previous state
-
-logger -t "di" "Internet state: \$1, elapsed time: \$2s."
 
 EOF
 		chmod 755 "$script_inets"
@@ -530,7 +546,7 @@ EOF
 	# create user dns servers
 	if [ ! -f "$user_dhcp_conf" ] ; then
 		cat > "$user_dhcp_conf" <<EOF
-#6C:96:CF:E0:95:55,192.168.1.10,iMac
+#2C:15:E1:15:1F:18,192.168.12.11,K2P
 
 EOF
 		chmod 644 "$user_dhcp_conf"
